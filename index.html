@@ -3,1532 +3,836 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>JSClear — JavaScript Deobfuscator</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/prettier/2.8.8/standalone.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/prettier/2.8.8/parser-babel.js"></script>
+<title>JSClear — JS Deobfuscator</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg-void: #080810;
-    --bg-panel: #0e0e1a;
-    --bg-surface: #13131f;
-    --bg-elevated: #1a1a2e;
-    --border: #252540;
-    --border-glow: #4040a0;
-    --accent-cyan: #00e5ff;
-    --accent-violet: #7c3aed;
-    --accent-pink: #e040fb;
-    --accent-green: #00ffa3;
-    --text-primary: #e8e8f0;
-    --text-secondary: #8888aa;
-    --text-muted: #44445a;
-    --glow-cyan: 0 0 20px rgba(0,229,255,0.3);
-    --glow-violet: 0 0 20px rgba(124,58,237,0.4);
-  }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    background: var(--bg-void);
-    color: var(--text-primary);
-    font-family: 'JetBrains Mono', monospace;
-    min-height: 100vh;
-    overflow-x: hidden;
-  }
-
-  /* Grid overlay */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image:
-      linear-gradient(rgba(64,64,160,0.04) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(64,64,160,0.04) 1px, transparent 1px);
-    background-size: 40px 40px;
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  /* Ambient glow blobs */
-  .ambient {
-    position: fixed;
-    border-radius: 50%;
-    filter: blur(80px);
-    pointer-events: none;
-    z-index: 0;
-    opacity: 0.25;
-    animation: drift 12s ease-in-out infinite alternate;
-  }
-  .ambient-1 { width: 500px; height: 500px; background: var(--accent-violet); top: -150px; left: -100px; }
-  .ambient-2 { width: 400px; height: 400px; background: var(--accent-cyan); bottom: -100px; right: -100px; animation-delay: -6s; }
-  .ambient-3 { width: 300px; height: 300px; background: var(--accent-pink); top: 40%; left: 60%; opacity: 0.12; animation-delay: -3s; }
-
-  @keyframes drift {
-    from { transform: translate(0, 0) scale(1); }
-    to { transform: translate(30px, -20px) scale(1.05); }
-  }
-
-  .main-wrap {
-    position: relative;
-    z-index: 1;
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 20px 24px 40px;
-  }
-
-  /* Header */
-  .header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 20px 0 28px;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 28px;
-  }
-
-  .logo {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .logo-icon {
-    width: 42px; height: 42px;
-    background: linear-gradient(135deg, var(--accent-violet), var(--accent-cyan));
-    border-radius: 10px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 20px;
-    box-shadow: var(--glow-cyan);
-  }
-
-  .logo-text {
-    font-family: 'Syne', sans-serif;
-    font-weight: 800;
-    font-size: 24px;
-    background: linear-gradient(90deg, var(--accent-cyan), var(--accent-violet));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    letter-spacing: -0.5px;
-  }
-
-  .logo-sub {
-    font-size: 11px;
-    color: var(--text-muted);
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    margin-top: 2px;
-  }
-
-  .header-badges {
-    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
-  }
-
-  .badge {
-    font-size: 10px;
-    padding: 4px 10px;
-    border-radius: 20px;
-    border: 1px solid;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    font-weight: 600;
-  }
-  .badge-cyan { border-color: var(--accent-cyan); color: var(--accent-cyan); background: rgba(0,229,255,0.07); }
-  .badge-violet { border-color: var(--accent-violet); color: #a78bfa; background: rgba(124,58,237,0.1); }
-  .badge-green { border-color: var(--accent-green); color: var(--accent-green); background: rgba(0,255,163,0.07); }
-
-  /* Layout */
-  .editor-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-    margin-bottom: 16px;
-  }
-
-  @media (max-width: 900px) {
-    .editor-grid { grid-template-columns: 1fr; }
-  }
-
-  /* Panel */
-  .panel {
-    background: var(--bg-panel);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    transition: border-color 0.3s;
-  }
-
-  .panel:hover { border-color: var(--border-glow); }
-
-  .panel-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 16px;
-    background: var(--bg-surface);
-    border-bottom: 1px solid var(--border);
-    gap: 10px;
-  }
-
-  .panel-title {
-    display: flex; align-items: center; gap: 8px;
-    font-family: 'Syne', sans-serif;
-    font-weight: 600;
-    font-size: 13px;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-  }
-
-  .panel-title .dot {
-    width: 7px; height: 7px; border-radius: 50%;
-  }
-
-  .panel-actions {
-    display: flex; gap: 6px; align-items: center;
-  }
-
-  .panel-btn {
-    display: flex; align-items: center; gap: 5px;
-    padding: 5px 11px;
-    border-radius: 6px;
-    border: 1px solid var(--border);
-    background: var(--bg-elevated);
-    color: var(--text-secondary);
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px;
-    cursor: pointer;
-    transition: all 0.2s;
-    white-space: nowrap;
-  }
-
-  .panel-btn:hover {
-    border-color: var(--accent-cyan);
-    color: var(--accent-cyan);
-    background: rgba(0,229,255,0.07);
-  }
-
-  .panel-btn.danger:hover {
-    border-color: #f87171;
-    color: #f87171;
-    background: rgba(248,113,113,0.07);
-  }
-
-  .char-count {
-    font-size: 10px;
-    color: var(--text-muted);
-    padding: 5px 10px;
-    background: var(--bg-elevated);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    font-family: 'JetBrains Mono', monospace;
-  }
-
-  .char-count.warn { color: #fbbf24; border-color: rgba(251,191,36,0.4); }
-  .char-count.limit { color: #f87171; border-color: rgba(248,113,113,0.4); }
-
-  /* Textarea / Code area */
-  .code-area {
-    flex: 1;
-    width: 100%;
-    min-height: 380px;
-    max-height: 480px;
-    background: transparent;
-    border: none;
-    outline: none;
-    resize: none;
-    color: var(--text-primary);
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 12.5px;
-    line-height: 1.7;
-    padding: 16px;
-    caret-color: var(--accent-cyan);
-    scrollbar-width: thin;
-    scrollbar-color: var(--border-glow) transparent;
-  }
-
-  .code-area::placeholder { color: var(--text-muted); font-style: italic; }
-  .code-area::-webkit-scrollbar { width: 6px; }
-  .code-area::-webkit-scrollbar-track { background: transparent; }
-  .code-area::-webkit-scrollbar-thumb { background: var(--border-glow); border-radius: 3px; }
-
-  /* Drop zone */
-  .drop-zone {
-    border: 2px dashed var(--border);
-    border-radius: 8px;
-    margin: 12px 16px;
-    padding: 16px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.3s;
-    background: var(--bg-surface);
-    position: relative;
-  }
-
-  .drop-zone:hover, .drop-zone.drag-over {
-    border-color: var(--accent-cyan);
-    background: rgba(0,229,255,0.05);
-  }
-
-  .drop-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-  .drop-zone-text { font-size: 12px; color: var(--text-secondary); }
-  .drop-zone-icon { font-size: 22px; margin-bottom: 6px; }
-  .drop-zone .filename {
-    color: var(--accent-cyan);
-    font-size: 11px;
-    margin-top: 4px;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
-
-  /* Control bar */
-  .control-bar {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    padding: 16px 0;
-    flex-wrap: wrap;
-  }
-
-  /* Main deobfuscate button */
-  .btn-deobfuscate {
-    position: relative;
-    display: flex; align-items: center; gap: 10px;
-    padding: 14px 36px;
-    background: linear-gradient(135deg, var(--accent-violet), #6366f1, var(--accent-cyan));
-    background-size: 200% 200%;
-    border: none;
-    border-radius: 10px;
-    color: #fff;
-    font-family: 'Syne', sans-serif;
-    font-weight: 700;
-    font-size: 14px;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    cursor: pointer;
-    transition: all 0.3s;
-    box-shadow: 0 0 30px rgba(124,58,237,0.5), 0 4px 15px rgba(0,0,0,0.4);
-    overflow: hidden;
-    animation: gradShift 4s ease infinite;
-  }
-
-  .btn-deobfuscate::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent);
-    border-radius: inherit;
-  }
-
-  .btn-deobfuscate:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 0 50px rgba(124,58,237,0.7), 0 8px 25px rgba(0,0,0,0.5);
-  }
-
-  .btn-deobfuscate:active { transform: translateY(0); }
-
-  .btn-deobfuscate:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none;
-  }
-
-  @keyframes gradShift {
-    0%, 100% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-  }
-
-  .btn-secondary {
-    display: flex; align-items: center; gap: 8px;
-    padding: 12px 24px;
-    background: var(--bg-elevated);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    color: var(--text-secondary);
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 12px;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .btn-secondary:hover {
-    border-color: var(--accent-cyan);
-    color: var(--accent-cyan);
-    background: rgba(0,229,255,0.07);
-    box-shadow: 0 0 15px rgba(0,229,255,0.15);
-  }
-
-  /* Loading state */
-  .loading-wrap {
-    display: none;
-    align-items: center;
-    justify-content: center;
-    gap: 14px;
-    padding: 20px;
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    width: 100%;
-    max-width: 500px;
-  }
-
-  .loading-wrap.active { display: flex; }
-
-  .spinner {
-    width: 22px; height: 22px;
-    border: 2px solid var(--border);
-    border-top-color: var(--accent-cyan);
-    border-right-color: var(--accent-violet);
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-    flex-shrink: 0;
-  }
-
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  .loading-text {
-    font-size: 12px;
-    color: var(--text-secondary);
-  }
-
-  .progress-bar-wrap {
-    width: 140px;
-    height: 3px;
-    background: var(--bg-elevated);
-    border-radius: 3px;
-    overflow: hidden;
-  }
-
-  .progress-bar-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--accent-violet), var(--accent-cyan));
-    border-radius: 3px;
-    width: 0%;
-    transition: width 0.3s ease;
-    animation: progressGlow 1.5s ease-in-out infinite;
-  }
-
-  @keyframes progressGlow {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
-  }
-
-  /* Stats bar */
-  .stats-bar {
-    display: flex; gap: 16px; flex-wrap: wrap;
-    padding: 10px 16px;
-    background: var(--bg-surface);
-    border-top: 1px solid var(--border);
-    font-size: 11px;
-    color: var(--text-muted);
-  }
-
-  .stat-item { display: flex; align-items: center; gap: 5px; }
-  .stat-val { color: var(--accent-cyan); font-weight: 600; }
-  .stat-val.green { color: var(--accent-green); }
-  .stat-val.violet { color: #a78bfa; }
-
-  /* Analysis panel */
-  .analysis-panel {
-    background: var(--bg-panel);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    overflow: hidden;
-    margin-bottom: 16px;
-  }
-
-  .analysis-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 1px;
-    background: var(--border);
-  }
-
-  .analysis-item {
-    background: var(--bg-panel);
-    padding: 14px 18px;
-    display: flex; flex-direction: column; gap: 4px;
-  }
-
-  .analysis-label {
-    font-size: 10px;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-  }
-
-  .analysis-value {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-primary);
-    display: flex; align-items: center; gap: 6px;
-  }
-
-  .tag {
-    display: inline-flex; align-items: center;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-  }
-
-  .tag-detected { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
-  .tag-clean { background: rgba(0,255,163,0.1); color: var(--accent-green); border: 1px solid rgba(0,255,163,0.25); }
-  .tag-unknown { background: rgba(100,100,130,0.15); color: var(--text-muted); border: 1px solid var(--border); }
-
-  /* Toast */
-  .toast {
-    position: fixed;
-    bottom: 28px; right: 28px;
-    background: var(--bg-elevated);
-    border: 1px solid var(--border-glow);
-    border-radius: 10px;
-    padding: 12px 20px;
-    font-size: 12px;
-    color: var(--text-primary);
-    display: flex; align-items: center; gap: 10px;
-    z-index: 1000;
-    transform: translateY(80px);
-    opacity: 0;
-    transition: all 0.4s cubic-bezier(0.34,1.56,0.64,1);
-    box-shadow: 0 4px 30px rgba(0,0,0,0.5), 0 0 20px rgba(64,64,160,0.3);
-  }
-
-  .toast.show { transform: translateY(0); opacity: 1; }
-  .toast.success { border-color: rgba(0,255,163,0.5); }
-  .toast.error { border-color: rgba(248,113,113,0.5); }
-
-  /* Technique tags */
-  .tech-tags { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 16px; border-top: 1px solid var(--border); }
-
-  .tech-tag {
-    font-size: 10px;
-    padding: 3px 10px;
-    border-radius: 20px;
-    background: rgba(124,58,237,0.12);
-    border: 1px solid rgba(124,58,237,0.3);
-    color: #a78bfa;
-    letter-spacing: 0.5px;
-  }
-
-  .tech-tag.found {
-    background: rgba(239,68,68,0.12);
-    border-color: rgba(239,68,68,0.3);
-    color: #fca5a5;
-  }
-
-  /* Output area */
-  .output-wrap { position: relative; }
-
-  .output-overlay {
-    position: absolute;
-    inset: 0;
-    display: flex; align-items: center; justify-content: center;
-    background: rgba(8,8,16,0.7);
-    backdrop-filter: blur(4px);
-    border-radius: 0 0 12px 12px;
-    z-index: 2;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .output-overlay.hidden { display: none; }
-
-  .empty-icon { font-size: 36px; opacity: 0.3; }
-  .empty-text { font-size: 12px; color: var(--text-muted); text-align: center; }
-
-  /* Scrollbar global */
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { background: var(--bg-void); }
-  ::-webkit-scrollbar-thumb { background: var(--border-glow); border-radius: 3px; }
-
-  /* Footer */
-  .footer {
-    border-top: 1px solid var(--border);
-    padding-top: 20px;
-    margin-top: 20px;
-    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
-    font-size: 11px;
-    color: var(--text-muted);
-  }
-
-  .footer a { color: var(--text-muted); text-decoration: none; }
-  .footer span { color: var(--accent-cyan); }
-
-  /* Pulse animation for detected badge */
-  @keyframes pulse-red {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
-    50% { box-shadow: 0 0 0 5px rgba(239,68,68,0); }
-  }
-
-  .tag-detected { animation: pulse-red 2s ease-in-out infinite; }
-
-  /* Fade in for elements */
-  .fadein {
-    animation: fadeUp 0.5s ease forwards;
-    opacity: 0;
-    transform: translateY(10px);
-  }
-
-  @keyframes fadeUp {
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  .fadein:nth-child(1) { animation-delay: 0.05s; }
-  .fadein:nth-child(2) { animation-delay: 0.1s; }
-  .fadein:nth-child(3) { animation-delay: 0.15s; }
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --void:#07070f;--panel:#0d0d1a;--surface:#111120;--raised:#181830;--border:#1e1e3a;--glow:#3030a0;
+  --cyan:#00e5ff;--violet:#7c3aed;--pink:#e040fb;--green:#00ffa3;--amber:#ffb300;--red:#ff4444;
+  --t1:#eaeaf8;--t2:#7070a0;--t3:#333360;
+}
+html,body{min-height:100vh;background:var(--void);color:var(--t1);font-family:'JetBrains Mono',monospace;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 39px,rgba(30,30,58,.45) 40px),repeating-linear-gradient(90deg,transparent,transparent 39px,rgba(30,30,58,.45) 40px);pointer-events:none;z-index:0}
+
+.amb{position:fixed;border-radius:50%;filter:blur(90px);pointer-events:none;z-index:0;animation:drift 14s ease-in-out infinite alternate}
+.a1{width:600px;height:600px;background:var(--violet);top:-200px;left:-150px;opacity:.17}
+.a2{width:500px;height:500px;background:var(--cyan);bottom:-150px;right:-150px;opacity:.14;animation-delay:-7s}
+.a3{width:350px;height:350px;background:var(--pink);top:45%;left:55%;opacity:.07;animation-delay:-3.5s}
+@keyframes drift{from{transform:translate(0,0) scale(1)}to{transform:translate(40px,-30px) scale(1.08)}}
+
+.wrap{position:relative;z-index:1;max-width:1440px;margin:0 auto;padding:20px 20px 50px}
+
+/* Header */
+.hdr{display:flex;align-items:center;justify-content:space-between;padding:18px 0 22px;border-bottom:1px solid var(--border);margin-bottom:24px;gap:12px;flex-wrap:wrap}
+.logo{display:flex;align-items:center;gap:14px}
+.logo-ico{width:44px;height:44px;background:linear-gradient(135deg,var(--violet),var(--cyan));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 0 25px rgba(0,229,255,.25);flex-shrink:0}
+.logo-name{font-family:'Syne',sans-serif;font-weight:800;font-size:26px;background:linear-gradient(90deg,var(--cyan),var(--violet));-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-1px}
+.logo-tag{font-size:10px;color:var(--t3);letter-spacing:2px;text-transform:uppercase;margin-top:2px}
+.badges{display:flex;gap:6px;flex-wrap:wrap}
+.badge{font-size:10px;padding:3px 10px;border-radius:20px;border:1px solid;letter-spacing:.8px;text-transform:uppercase;font-weight:600}
+.b-cyan{border-color:var(--cyan);color:var(--cyan);background:rgba(0,229,255,.07)}
+.b-violet{border-color:var(--violet);color:#a78bfa;background:rgba(124,58,237,.1)}
+.b-green{border-color:var(--green);color:var(--green);background:rgba(0,255,163,.07)}
+.b-amber{border-color:var(--amber);color:var(--amber);background:rgba(255,179,0,.07)}
+
+/* Analysis panel */
+.ap{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:18px;display:none}
+.ap.visible{display:block;animation:fadeup .35s ease}
+@keyframes fadeup{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.ap-hdr{display:flex;align-items:center;justify-content:space-between;padding:11px 16px;background:var(--surface);border-bottom:1px solid var(--border)}
+.ap-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:1px;background:var(--border)}
+.ap-cell{background:var(--panel);padding:12px 16px}
+.ap-lbl{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px}
+.ap-val{font-size:13px;font-weight:600;color:var(--t1);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.tag{display:inline-flex;align-items:center;padding:1px 7px;border-radius:4px;font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.td{background:rgba(255,68,68,.12);color:#ff9a9a;border:1px solid rgba(255,68,68,.3)}
+.tc{background:rgba(0,255,163,.1);color:var(--green);border:1px solid rgba(0,255,163,.25)}
+.tt{display:flex;flex-wrap:wrap;gap:5px;padding:10px 16px;border-top:1px solid var(--border)}
+.tech{font-size:10px;padding:2px 9px;border-radius:20px;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.3);color:#a78bfa}
+.tech.found{background:rgba(255,100,100,.1);border-color:rgba(255,100,100,.3);color:#ffaaaa}
+
+/* Grid */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+@media(max-width:860px){.grid{grid-template-columns:1fr}}
+
+/* Panel */
+.pnl{background:var(--panel);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;transition:border-color .25s;overflow:hidden}
+.pnl:focus-within{border-color:var(--glow)}
+.ph{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border-bottom:1px solid var(--border);gap:8px;flex-wrap:wrap}
+.pt{display:flex;align-items:center;gap:7px;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:1.5px}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.pa{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.pbtn{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--raised);color:var(--t2);font-family:'JetBrains Mono',monospace;font-size:11px;cursor:pointer;transition:all .2s;white-space:nowrap}
+.pbtn:hover{border-color:var(--cyan);color:var(--cyan);background:rgba(0,229,255,.07)}
+.pbtn.danger:hover{border-color:var(--red);color:var(--red);background:rgba(255,68,68,.07)}
+.ccnt{font-size:10px;color:var(--t3);padding:4px 9px;background:var(--raised);border:1px solid var(--border);border-radius:6px}
+.ccnt.warn{color:var(--amber);border-color:rgba(255,179,0,.4)}
+.ccnt.limit{color:var(--red);border-color:rgba(255,68,68,.4)}
+
+/* Drop zone */
+.dz{border:2px dashed var(--border);border-radius:8px;margin:10px 14px;padding:14px;text-align:center;cursor:pointer;transition:all .25s;background:var(--surface);position:relative}
+.dz:hover,.dz.over{border-color:var(--cyan);background:rgba(0,229,255,.04)}
+.dz input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.dz-ico{font-size:20px;margin-bottom:5px}
+.dz-txt{font-size:11px;color:var(--t2)}
+.dz-fn{color:var(--cyan);font-size:10px;margin-top:3px}
+
+/* Textarea */
+.ca{flex:1;width:100%;min-height:360px;max-height:460px;background:transparent;border:none;outline:none;resize:none;color:var(--t1);font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.75;padding:14px;caret-color:var(--cyan);scrollbar-width:thin;scrollbar-color:var(--glow) transparent}
+.ca::placeholder{color:var(--t3);font-style:italic}
+.ca::-webkit-scrollbar{width:5px}.ca::-webkit-scrollbar-track{background:transparent}.ca::-webkit-scrollbar-thumb{background:var(--glow);border-radius:3px}
+
+/* Stats */
+.sb{display:flex;gap:14px;flex-wrap:wrap;padding:8px 14px;background:var(--surface);border-top:1px solid var(--border);font-size:10px;color:var(--t3)}
+.sv{font-weight:600}.sv.c{color:var(--cyan)}.sv.g{color:var(--green)}.sv.v{color:#a78bfa}.sv.a{color:var(--amber)}
+
+/* Output overlay */
+.out-wrap{flex:1;display:flex;flex-direction:column;position:relative}
+.out-ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(7,7,15,.75);backdrop-filter:blur(3px);flex-direction:column;gap:10px;z-index:2}
+.out-ov.hidden{display:none}
+.ov-ico{font-size:32px;opacity:.3}.ov-txt{font-size:11px;color:var(--t3);text-align:center;line-height:1.6}
+
+/* Controls */
+.ctrl{display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 0;flex-wrap:wrap}
+.btn-main{position:relative;display:inline-flex;align-items:center;gap:10px;padding:14px 38px;background:linear-gradient(135deg,#5b21b6,#4f46e5,#0891b2);background-size:200%;border:none;border-radius:10px;color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;transition:all .3s;box-shadow:0 0 35px rgba(79,70,229,.45),0 4px 20px rgba(0,0,0,.4)}
+.btn-main::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.15),transparent);border-radius:inherit;pointer-events:none}
+.btn-main:hover{transform:translateY(-2px);box-shadow:0 0 55px rgba(79,70,229,.65),0 8px 30px rgba(0,0,0,.5)}
+.btn-main:active{transform:translateY(0)}.btn-main:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.btn-sec{display:inline-flex;align-items:center;gap:7px;padding:12px 22px;background:var(--raised);border:1px solid var(--border);border-radius:10px;color:var(--t2);font-family:'JetBrains Mono',monospace;font-size:12px;cursor:pointer;transition:all .2s}
+.btn-sec:hover{border-color:var(--cyan);color:var(--cyan);background:rgba(0,229,255,.07)}
+
+/* Loading */
+.ld{display:none;align-items:center;gap:12px;padding:14px 20px;background:var(--surface);border:1px solid var(--border);border-radius:10px;min-width:270px}
+.ld.active{display:flex}
+.spin{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--cyan);border-right-color:var(--violet);border-radius:50%;animation:spin .65s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ld-info{flex:1}.ld-txt{font-size:11px;color:var(--t2);margin-bottom:5px}
+.pb-wrap{height:3px;background:var(--raised);border-radius:3px;overflow:hidden}
+.pb{height:100%;background:linear-gradient(90deg,var(--violet),var(--cyan));border-radius:3px;width:0;transition:width .35s ease}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--raised);border:1px solid var(--glow);border-radius:10px;padding:11px 18px;font-size:12px;color:var(--t1);display:flex;align-items:center;gap:9px;z-index:9999;transform:translateY(70px);opacity:0;transition:all .4s cubic-bezier(.34,1.56,.64,1);box-shadow:0 4px 30px rgba(0,0,0,.5)}
+.toast.show{transform:translateY(0);opacity:1}.toast.ok{border-color:rgba(0,255,163,.45)}.toast.err{border-color:rgba(255,68,68,.45)}.toast.info{border-color:rgba(0,229,255,.45)}
+
+/* Footer */
+.ftr{border-top:1px solid var(--border);padding-top:16px;margin-top:8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:10px;color:var(--t3)}
+.ftr em{color:var(--cyan);font-style:normal}
+
+/* Animations */
+.fi{opacity:0;transform:translateY(12px);animation:fi .5s ease forwards}
+@keyframes fi{to{opacity:1;transform:translateY(0)}}
+.fi:nth-child(1){animation-delay:.04s}.fi:nth-child(2){animation-delay:.09s}.fi:nth-child(3){animation-delay:.14s}.fi:nth-child(4){animation-delay:.18s}
+
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:var(--void)}::-webkit-scrollbar-thumb{background:var(--glow);border-radius:3px}
+::selection{background:rgba(124,58,237,.4);color:#fff}
 </style>
 </head>
 <body>
 
-<div class="ambient ambient-1"></div>
-<div class="ambient ambient-2"></div>
-<div class="ambient ambient-3"></div>
+<div class="amb a1"></div>
+<div class="amb a2"></div>
+<div class="amb a3"></div>
 
-<div class="main-wrap">
+<div class="wrap">
 
-  <!-- Header -->
-  <header class="header fadein">
-    <div class="logo">
-      <div class="logo-icon">⚡</div>
-      <div>
-        <div class="logo-text">JSClear</div>
-        <div class="logo-sub">JavaScript Deobfuscator</div>
-      </div>
+<header class="hdr fi">
+  <div class="logo">
+    <div class="logo-ico">⚡</div>
+    <div>
+      <div class="logo-name">JSClear</div>
+      <div class="logo-tag">JavaScript Deobfuscator v3</div>
     </div>
-    <div class="header-badges">
-      <span class="badge badge-cyan">No Backend</span>
-      <span class="badge badge-violet">Client-Side</span>
-      <span class="badge badge-green">5MB / 1M chars</span>
-    </div>
-  </header>
-
-  <!-- Analysis Panel -->
-  <div class="analysis-panel fadein" id="analysisPanel" style="display:none;">
-    <div class="panel-header">
-      <div class="panel-title">
-        <div class="dot" style="background:#a78bfa"></div>
-        Detection Analysis
-      </div>
-      <span id="analysisSummary" class="badge badge-violet">—</span>
-    </div>
-    <div class="analysis-grid" id="analysisGrid"></div>
-    <div class="tech-tags" id="techTags"></div>
   </div>
-
-  <!-- Editor Grid -->
-  <div class="editor-grid fadein">
-
-    <!-- Input Panel -->
-    <div class="panel">
-      <div class="panel-header">
-        <div class="panel-title">
-          <div class="dot" style="background:var(--accent-cyan)"></div>
-          Input
-        </div>
-        <div class="panel-actions">
-          <span class="char-count" id="inputCount">0 chars</span>
-          <button class="panel-btn danger" onclick="clearInput()">✕ Clear</button>
-        </div>
-      </div>
-
-      <!-- Drop Zone -->
-      <div class="drop-zone" id="dropZone">
-        <input type="file" accept=".js,.txt" id="fileInput" onchange="handleFile(event)">
-        <div class="drop-zone-icon">📂</div>
-        <div class="drop-zone-text">Drop <strong>.js</strong> file here or <strong>click to browse</strong></div>
-        <div class="filename" id="fileName"></div>
-      </div>
-
-      <textarea
-        class="code-area"
-        id="inputCode"
-        placeholder="// Paste obfuscated JavaScript here...&#10;// Or drop a .js file above&#10;&#10;var _0x1234=['hello','world'];&#10;(function(_0x5678,_0x9abc){...})(_0x1234,0x123);"
-        oninput="updateInputCount()"
-        spellcheck="false"
-        maxlength="1000000"
-      ></textarea>
-
-      <div class="stats-bar" id="inputStats">
-        <span class="stat-item">Lines: <span class="stat-val" id="lineCount">0</span></span>
-        <span class="stat-item">Size: <span class="stat-val" id="sizeCount">0 B</span></span>
-      </div>
-    </div>
-
-    <!-- Output Panel -->
-    <div class="panel">
-      <div class="panel-header">
-        <div class="panel-title">
-          <div class="dot" style="background:var(--accent-green)"></div>
-          Output
-        </div>
-        <div class="panel-actions">
-          <span class="char-count" id="outputCount">0 chars</span>
-          <button class="panel-btn" onclick="copyOutput()">⎘ Copy</button>
-          <button class="panel-btn" onclick="downloadOutput()">↓ Download</button>
-        </div>
-      </div>
-
-      <div class="output-wrap" style="flex:1; display:flex; flex-direction:column;">
-        <textarea
-          class="code-area"
-          id="outputCode"
-          placeholder="// Deobfuscated output will appear here..."
-          readonly
-          spellcheck="false"
-        ></textarea>
-
-        <div class="output-overlay" id="outputOverlay">
-          <div class="empty-icon">🔍</div>
-          <div class="empty-text">Paste code and click<br><strong>Deobfuscate</strong> to start</div>
-        </div>
-      </div>
-
-      <div class="stats-bar" id="outputStats">
-        <span class="stat-item">Reduction: <span class="stat-val green" id="reductionStat">—</span></span>
-        <span class="stat-item">Passes: <span class="stat-val violet" id="passesStat">—</span></span>
-        <span class="stat-item">Time: <span class="stat-val" id="timeStat">—</span></span>
-      </div>
-    </div>
-
+  <div class="badges">
+    <span class="badge b-cyan">Client-Side</span>
+    <span class="badge b-violet">No Backend</span>
+    <span class="badge b-green">5MB</span>
+    <span class="badge b-amber">_0x · eval · packer</span>
   </div>
+</header>
 
-  <!-- Control Bar -->
-  <div class="control-bar fadein">
-
-    <div class="loading-wrap" id="loadingWrap">
-      <div class="spinner"></div>
-      <div>
-        <div class="loading-text" id="loadingText">Processing...</div>
-        <div class="progress-bar-wrap" style="margin-top:6px;">
-          <div class="progress-bar-fill" id="progressBar"></div>
-        </div>
-      </div>
-    </div>
-
-    <button class="btn-deobfuscate" id="deobfuscateBtn" onclick="deobfuscate()">
-      <span>⚡</span>
-      <span>Deobfuscate</span>
-    </button>
-
-    <button class="btn-secondary" onclick="formatOnly()">
-      <span>{ }</span>
-      <span>Format Only</span>
-    </button>
-
-    <button class="btn-secondary" onclick="analyzeOnly()">
-      <span>🔎</span>
-      <span>Analyze</span>
-    </button>
-
+<div class="ap" id="ap">
+  <div class="ap-hdr">
+    <div class="pt"><div class="dot" style="background:#a78bfa"></div>Detection Analysis</div>
+    <span id="ap-sum" class="badge b-violet">—</span>
   </div>
-
-  <!-- Footer -->
-  <footer class="footer">
-    <span>JSClear v1.0 — <span>Client-side only</span>, your code never leaves the browser</span>
-    <span>Supports: _0x arrays · eval() · hex encoding · packers · unicode escapes</span>
-  </footer>
-
+  <div class="ap-grid" id="ap-grid"></div>
+  <div class="tt" id="ap-tags"></div>
 </div>
 
-<!-- Toast -->
-<div class="toast" id="toast">
-  <span id="toastIcon">✓</span>
-  <span id="toastMsg">Copied!</span>
+<div class="grid fi">
+  <div class="pnl">
+    <div class="ph">
+      <div class="pt"><div class="dot" style="background:var(--cyan)"></div>Input</div>
+      <div class="pa">
+        <span class="ccnt" id="ic">0 chars</span>
+        <button class="pbtn danger" onclick="clearInput()">✕ Clear</button>
+      </div>
+    </div>
+    <div class="dz" id="dz">
+      <input type="file" accept=".js,.txt,.mjs" id="fInput" onchange="handleFile(event)">
+      <div class="dz-ico">📂</div>
+      <div class="dz-txt">Drop <strong>.js</strong> file or <strong>click to browse</strong></div>
+      <div class="dz-fn" id="fn"></div>
+    </div>
+    <textarea class="ca" id="inp"
+      placeholder="// Paste obfuscated JavaScript here...&#10;// Supports: _0x arrays · decoder functions · rotation · eval · packer · hex/unicode"
+      oninput="onInput()" spellcheck="false" maxlength="1000000"></textarea>
+    <div class="sb">
+      <span>Lines: <span class="sv c" id="lc">0</span></span>
+      <span>Size: <span class="sv c" id="sc">0 B</span></span>
+    </div>
+  </div>
+
+  <div class="pnl">
+    <div class="ph">
+      <div class="pt"><div class="dot" style="background:var(--green)"></div>Output</div>
+      <div class="pa">
+        <span class="ccnt" id="oc">0 chars</span>
+        <button class="pbtn" onclick="copyOut()">⎘ Copy</button>
+        <button class="pbtn" onclick="dlOut()">↓ Download</button>
+      </div>
+    </div>
+    <div class="out-wrap">
+      <textarea class="ca" id="out" readonly placeholder="// Deobfuscated output will appear here..." spellcheck="false"></textarea>
+      <div class="out-ov" id="ov">
+        <div class="ov-ico">🔍</div>
+        <div class="ov-txt">Paste code and press<br><strong>Deobfuscate</strong></div>
+      </div>
+    </div>
+    <div class="sb">
+      <span>Reduction: <span class="sv g" id="red">—</span></span>
+      <span>Transforms: <span class="sv v" id="trn">—</span></span>
+      <span>Time: <span class="sv c" id="tim">—</span></span>
+    </div>
+  </div>
 </div>
+
+<div class="ctrl fi">
+  <div class="ld" id="ld">
+    <div class="spin"></div>
+    <div class="ld-info">
+      <div class="ld-txt" id="ld-txt">Processing...</div>
+      <div class="pb-wrap"><div class="pb" id="pb"></div></div>
+    </div>
+  </div>
+  <button class="btn-main" id="btn-deob" onclick="deobfuscate()">⚡ Deobfuscate</button>
+  <button class="btn-sec" onclick="formatOnly()">{ } Format</button>
+  <button class="btn-sec" onclick="analyzeOnly()">🔎 Analyze</button>
+</div>
+
+<footer class="ftr fi">
+  <span>JSClear v3 — <em>code never leaves your browser</em></span>
+  <span>_0x arrays · rotation · decoder fn · eval · packer · hex · unicode · constant folding</span>
+</footer>
+</div>
+
+<div class="toast" id="toast"><span id="t-ico">✓</span><span id="t-msg"></span></div>
 
 <script>
-// ============================================================
-//  JSClear — JavaScript Deobfuscator
-//  All processing happens client-side in the browser
-// ============================================================
+'use strict';
+// ══════════════════════════════════════════════════════════════
+//  JSClear v3 — Full Deobfuscation Engine
+//  Strategy:
+//    1. Decode all \xNN \uNNNN escape sequences first
+//    2. Parse ALL _0x string arrays (with bracket matching)
+//    3. Apply array rotations (IIFE pattern detection)
+//    4. Find ALL decoder functions referencing each array
+//    5. Determine index offset for each decoder
+//    6. Replace every decoder call with the resolved string
+//    7. Multi-pass until stable
+//    8. Packer / eval / simplify / format
+// ══════════════════════════════════════════════════════════════
 
-// --- UI Utilities ---
+// ── UI ────────────────────────────────────────────────────────
+function $e(id){ return document.getElementById(id); }
 
-function showToast(msg, type = 'success') {
-  const t = document.getElementById('toast');
-  const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
-  document.getElementById('toastIcon').textContent = icon;
-  document.getElementById('toastMsg').textContent = msg;
-  t.className = 'toast show ' + type;
-  setTimeout(() => { t.className = 'toast'; }, 3000);
+function toast(msg, type){
+  type = type || 'ok';
+  const el = $e('toast');
+  $e('t-ico').textContent = type==='ok'?'✓':type==='err'?'✕':'ℹ';
+  $e('t-msg').textContent = msg;
+  el.className = 'toast show ' + type;
+  clearTimeout(el.__t);
+  el.__t = setTimeout(function(){ el.className='toast'; }, 3200);
 }
 
-function setProgress(pct, label) {
-  document.getElementById('progressBar').style.width = pct + '%';
-  if (label) document.getElementById('loadingText').textContent = label;
+function setProgress(pct, lbl){
+  $e('pb').style.width = pct + '%';
+  if(lbl) $e('ld-txt').textContent = lbl;
 }
 
-function setLoading(active, label = 'Processing...') {
-  const btn = document.getElementById('deobfuscateBtn');
-  const wrap = document.getElementById('loadingWrap');
-  btn.disabled = active;
-  if (active) {
-    wrap.classList.add('active');
-    setProgress(0, label);
+function setLoading(on, lbl){
+  $e('btn-deob').disabled = !!on;
+  if(on){
+    $e('ld').classList.add('active');
+    setProgress(0, lbl || 'Processing...');
   } else {
-    wrap.classList.remove('active');
-    setProgress(0);
+    $e('ld').classList.remove('active');
   }
 }
 
-function formatBytes(bytes) {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+function fmtBytes(b){
+  if(b < 1024) return b + ' B';
+  if(b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  return (b/1048576).toFixed(2) + ' MB';
 }
 
-// --- File Handling ---
+function tick(){ return new Promise(function(r){ setTimeout(r, 0); }); }
 
-document.getElementById('dropZone').addEventListener('dragover', (e) => {
-  e.preventDefault();
-  document.getElementById('dropZone').classList.add('drag-over');
-});
-document.getElementById('dropZone').addEventListener('dragleave', () => {
-  document.getElementById('dropZone').classList.remove('drag-over');
-});
-document.getElementById('dropZone').addEventListener('drop', (e) => {
-  e.preventDefault();
-  document.getElementById('dropZone').classList.remove('drag-over');
-  const file = e.dataTransfer.files[0];
-  if (file) readFile(file);
+// ── File handling ─────────────────────────────────────────────
+var dzEl = $e('dz');
+dzEl.addEventListener('dragover', function(e){ e.preventDefault(); dzEl.classList.add('over'); });
+dzEl.addEventListener('dragleave', function(){ dzEl.classList.remove('over'); });
+dzEl.addEventListener('drop', function(e){
+  e.preventDefault(); dzEl.classList.remove('over');
+  var f = e.dataTransfer.files[0]; if(f) readFile(f);
 });
 
-function handleFile(event) {
-  const file = event.target.files[0];
-  if (file) readFile(file);
-}
+function handleFile(ev){ var f = ev.target.files[0]; if(f) readFile(f); }
 
-function readFile(file) {
-  if (file.size > 5 * 1024 * 1024) {
-    showToast('File exceeds 5MB limit', 'error');
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    document.getElementById('inputCode').value = e.target.result;
-    document.getElementById('fileName').textContent = '📄 ' + file.name;
-    updateInputCount();
-    showToast('File loaded: ' + file.name);
+function readFile(f){
+  if(f.size > 5*1024*1024){ toast('File > 5MB limit', 'err'); return; }
+  var r = new FileReader();
+  r.onload = function(e){
+    $e('inp').value = e.target.result;
+    $e('fn').textContent = '📄 ' + f.name;
+    onInput();
+    toast('Loaded: ' + f.name);
   };
-  reader.onerror = () => showToast('Failed to read file', 'error');
-  reader.readAsText(file, 'UTF-8');
+  r.onerror = function(){ toast('Failed to read file', 'err'); };
+  r.readAsText(f, 'UTF-8');
 }
 
-function updateInputCount() {
-  const code = document.getElementById('inputCode').value;
-  const len = code.length;
-  const lines = code ? code.split('\n').length : 0;
-
-  const countEl = document.getElementById('inputCount');
-  countEl.textContent = len.toLocaleString() + ' chars';
-  countEl.className = 'char-count' + (len > 900000 ? ' limit' : len > 500000 ? ' warn' : '');
-
-  document.getElementById('lineCount').textContent = lines.toLocaleString();
-  document.getElementById('sizeCount').textContent = formatBytes(new Blob([code]).size);
+function onInput(){
+  var v = $e('inp').value;
+  var n = v.length;
+  var lines = v ? v.split('\n').length : 0;
+  var el = $e('ic');
+  el.textContent = n.toLocaleString() + ' chars';
+  el.className = 'ccnt' + (n>900000?' limit':n>500000?' warn':'');
+  $e('lc').textContent = lines.toLocaleString();
+  $e('sc').textContent = fmtBytes(new Blob([v]).size);
 }
 
-function clearInput() {
-  document.getElementById('inputCode').value = '';
-  document.getElementById('fileName').textContent = '';
-  document.getElementById('fileInput').value = '';
-  updateInputCount();
-  hideAnalysis();
+function clearInput(){
+  $e('inp').value = ''; $e('fn').textContent = ''; $e('fInput').value = '';
+  onInput(); hideAP();
 }
 
-function copyOutput() {
-  const out = document.getElementById('outputCode').value;
-  if (!out) { showToast('Nothing to copy', 'error'); return; }
-  navigator.clipboard.writeText(out).then(() => showToast('Copied to clipboard!')).catch(() => {
-    // fallback
-    const ta = document.createElement('textarea');
-    ta.value = out;
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    showToast('Copied to clipboard!');
-  });
+function copyOut(){
+  var v = $e('out').value;
+  if(!v){ toast('Nothing to copy','err'); return; }
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(v).then(function(){ toast('Copied!'); }).catch(function(){ fallbackCopy(v); });
+  } else { fallbackCopy(v); }
+}
+function fallbackCopy(v){
+  var t = document.createElement('textarea');
+  t.value=v; document.body.appendChild(t); t.select(); document.execCommand('copy');
+  document.body.removeChild(t); toast('Copied!');
 }
 
-function downloadOutput() {
-  const out = document.getElementById('outputCode').value;
-  if (!out) { showToast('Nothing to download', 'error'); return; }
-  const blob = new Blob([out], { type: 'text/javascript' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
+function dlOut(){
+  var v = $e('out').value;
+  if(!v){ toast('Nothing to download','err'); return; }
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([v],{type:'text/javascript'}));
   a.download = 'deobfuscated_' + Date.now() + '.js';
   a.click();
-  URL.revokeObjectURL(url);
-  showToast('Downloaded!');
+  toast('Downloaded!');
 }
 
-// ============================================================
-//  DEOBFUSCATION ENGINE v2 — Full _0x decoder function support
-// ============================================================
+// ── Analysis ──────────────────────────────────────────────────
+function hideAP(){ $e('ap').classList.remove('visible'); }
 
-// ---- Helper: parse string array content safely ----
-function parseStringArray(content) {
-  const items = [];
-  let i = 0;
-  const len = content.length;
-  while (i < len) {
-    // skip whitespace and commas
-    while (i < len && (content[i] === ',' || content[i] === ' ' || content[i] === '\n' || content[i] === '\r' || content[i] === '\t')) i++;
-    if (i >= len) break;
-    const q = content[i];
-    if (q !== "'" && q !== '"') { i++; continue; }
-    i++; // skip opening quote
-    let str = '';
-    while (i < len) {
-      if (content[i] === '\\' && i + 1 < len) {
-        const next = content[i + 1];
-        if (next === 'x' && i + 3 < len) {
-          str += String.fromCharCode(parseInt(content.slice(i + 2, i + 4), 16));
-          i += 4;
-        } else if (next === 'u' && content[i + 2] === '{') {
-          const end = content.indexOf('}', i + 3);
-          if (end !== -1) { str += String.fromCodePoint(parseInt(content.slice(i + 3, end), 16)); i = end + 1; }
-          else i += 2;
-        } else if (next === 'u' && i + 5 < len) {
-          str += String.fromCharCode(parseInt(content.slice(i + 2, i + 6), 16));
-          i += 6;
-        } else if (next === 'n') { str += '\n'; i += 2; }
-        else if (next === 't') { str += '\t'; i += 2; }
-        else if (next === 'r') { str += '\r'; i += 2; }
-        else if (next === '0') { str += '\0'; i += 2; }
-        else { str += next; i += 2; }
-      } else if (content[i] === q) {
-        i++; break;
-      } else {
-        str += content[i++];
+function showAP(findings, techs, inLen, outLen){
+  var reduction = inLen>0 ? Math.round((1-outLen/inLen)*100) : 0;
+  var detected = findings.filter(function(f){ return f.d; }).length;
+  $e('ap-sum').textContent = detected>0 ? detected+' technique'+(detected>1?'s':'')+' detected' : 'Clean code';
+  $e('ap-sum').className = 'badge ' + (detected>0?'b-violet':'b-green');
+  var cells = findings.concat([{l:'Size Reduction',v:reduction+'%',d:false}]);
+  $e('ap-grid').innerHTML = cells.map(function(f){
+    return '<div class="ap-cell"><div class="ap-lbl">'+f.l+'</div><div class="ap-val">'+f.v+(f.d?'<span class="tag td">detected</span>':'')+'</div></div>';
+  }).join('');
+  $e('ap-tags').innerHTML = techs.length
+    ? '<span style="font-size:9px;color:var(--t3);align-self:center;letter-spacing:1px;text-transform:uppercase">Techniques:</span>'
+      + techs.map(function(t){ return '<span class="tech found">'+t+'</span>'; }).join('')
+    : '<span class="tech">No obfuscation detected</span>';
+  $e('ap').classList.add('visible');
+}
+
+function analyzeCode(code){
+  var findings=[], techs=[];
+  var ha = (code.match(/_0x[a-fA-F0-9]{3,8}\s*(?:=\s*\[|\(\))/g)||[]).length;
+  if(ha>0){ findings.push({l:'_0x String Arrays',v:ha+' found',d:true}); techs.push('_0x arrays'); }
+  var ev = (code.match(/\beval\s*\(/g)||[]).length;
+  if(ev>0){ findings.push({l:'eval() calls',v:ev,d:true}); techs.push('eval'); }
+  if(/eval\s*\(function\s*\(p,a,c,k,e/.test(code)){ findings.push({l:'Dean Edwards Packer',v:'Detected',d:true}); techs.push('packer'); }
+  var hx = (code.match(/\\x[0-9a-fA-F]{2}/g)||[]).length;
+  if(hx>3){ findings.push({l:'Hex Escapes \\xNN',v:hx,d:true}); techs.push('hex escapes'); }
+  var un = (code.match(/\\u[0-9a-fA-F]{4}/g)||[]).length;
+  if(un>3){ findings.push({l:'Unicode Escapes \\uNNNN',v:un,d:true}); techs.push('unicode escapes'); }
+  if(/\batob\s*\(/.test(code)){ findings.push({l:'Base64 atob()',v:'Detected',d:true}); techs.push('base64'); }
+  var brk = (code.match(/\w+\['[a-zA-Z_$][a-zA-Z0-9_$]+'\]/g)||[]).length;
+  if(brk>8){ findings.push({l:'Bracket Notation',v:brk,d:true}); techs.push('bracket notation'); }
+  var hn = (code.match(/\b0x[0-9a-fA-F]{3,}\b/g)||[]).length;
+  if(hn>10){ findings.push({l:'Hex Number Literals',v:hn,d:true}); techs.push('hex numbers'); }
+  var lines = (code.match(/\n/g)||[]).length;
+  if(code.length>500 && lines<5){ findings.push({l:'Heavily Minified',v:'1 line',d:true}); techs.push('minification'); }
+  if(findings.length===0) findings.push({l:'Obfuscation Status',v:'Not detected',d:false});
+  return {findings:findings, techs:techs};
+}
+
+// ════════════════════════════════════════════════════════════
+//  ENGINE
+// ════════════════════════════════════════════════════════════
+
+// Match brackets, skipping string contents
+function matchBracket(src, start, open, close){
+  var depth = 0;
+  var i = start;
+  while(i < src.length){
+    var c = src[i];
+    if(c === '"' || c === "'"){
+      var q = c; i++;
+      while(i < src.length && src[i] !== q){
+        if(src[i] === '\\') i++;
+        i++;
       }
+      i++; continue;
     }
-    items.push(str);
-  }
-  return items;
-}
-
-// ---- Helper: find matching bracket ----
-function findMatchingBracket(code, start, open, close) {
-  let depth = 0;
-  for (let i = start; i < code.length; i++) {
-    if (code[i] === open) depth++;
-    else if (code[i] === close) { depth--; if (depth === 0) return i; }
+    if(c === open) depth++;
+    else if(c === close){ depth--; if(depth===0) return i; }
+    i++;
   }
   return -1;
 }
 
-// ---- CORE: Extract _0x array + apply rotation + build decoder map ----
-function buildDecoderMaps(code) {
-  // Returns: { maps: { arrName: string[], decoderNames: Set<string> }, rotatedArrays: {} }
-  const result = { stringArrays: {}, decoderNames: {} };
-
-  // Step 1: Find all string arrays: var/let/const _0xXXXX = [...]
-  const arrDeclPattern = /(?:var|let|const)\s+(_0x[a-fA-F0-9]{3,8})\s*=\s*(\[)/g;
-  let m;
-  while ((m = arrDeclPattern.exec(code)) !== null) {
-    const varName = m[1];
-    const bracketStart = m.index + m[0].length - 1;
-    const bracketEnd = findMatchingBracket(code, bracketStart, '[', ']');
-    if (bracketEnd === -1) continue;
-    const content = code.slice(bracketStart + 1, bracketEnd);
-    if (content.length > 200000) continue; // safety
-    try {
-      const items = parseStringArray(content);
-      if (items.length > 0) result.stringArrays[varName] = items;
-    } catch(e) {}
-  }
-
-  // Also: function _0xXXXX() { return [...] }
-  const arrFnPattern = /function\s+(_0x[a-fA-F0-9]{3,8})\s*\(\s*\)\s*\{[^}]{0,100}return\s*(\[)/g;
-  while ((m = arrFnPattern.exec(code)) !== null) {
-    const varName = m[1];
-    const bracketStart = m.index + m[0].length - 1;
-    const bracketEnd = findMatchingBracket(code, bracketStart, '[', ']');
-    if (bracketEnd === -1) continue;
-    const content = code.slice(bracketStart + 1, bracketEnd);
-    try {
-      const items = parseStringArray(content);
-      if (items.length > 0) result.stringArrays[varName] = items;
-    } catch(e) {}
-  }
-
-  // Step 2: Find rotation IIFEs and apply them
-  // Pattern: (function(_a,_n){...push...shift...}(_0xXXXX, 0xNNN))
-  //      or: (function(_a,_n){...push...shift...}(_0xXXXX, NNN))
-  const rotPattern = /\(function\s*\(\s*\w+\s*,\s*\w+\s*\)\s*\{[\s\S]{0,500}?(?:push|unshift)[\s\S]{0,500}?shift[\s\S]{0,200}?\}\s*\(\s*(_0x[a-fA-F0-9]{3,8})\s*,\s*(0x[0-9a-fA-F]+|\d+)\s*\)\s*\)/g;
-  while ((m = rotPattern.exec(code)) !== null) {
-    const arrName = m[1];
-    const rotNum = m[2].startsWith('0x') ? parseInt(m[2], 16) : parseInt(m[2]);
-    if (result.stringArrays[arrName]) {
-      const arr = result.stringArrays[arrName];
-      // Simulate the rotation: arr.push(arr.shift()) repeated rotNum times (mod arr.length)
-      const times = rotNum % arr.length;
-      for (let i = 0; i < times; i++) arr.push(arr.shift());
+// Parse a JS string array from raw content between [ and ]
+function parseStringArray(raw){
+  var result = [];
+  var i = 0;
+  var len = raw.length;
+  while(i < len){
+    // skip whitespace and commas
+    while(i<len && (raw[i]===' '||raw[i]===','||raw[i]==='\n'||raw[i]==='\r'||raw[i]==='\t')) i++;
+    if(i >= len) break;
+    var q = raw[i];
+    if(q !== "'" && q !== '"'){ i++; continue; }
+    i++; // skip opening quote
+    var s = '';
+    while(i < len){
+      var ch = raw[i];
+      if(ch === '\\' && i+1 < len){
+        var nx = raw[i+1];
+        if(nx==='x' && i+3 < len){
+          s += String.fromCharCode(parseInt(raw.slice(i+2,i+4),16));
+          i += 4;
+        } else if(nx==='u' && raw[i+2]==='{'){
+          var end = raw.indexOf('}', i+3);
+          if(end!==-1){ try{ s+=String.fromCodePoint(parseInt(raw.slice(i+3,end),16)); }catch(e){ s+=raw[i+1]; } i=end+1; }
+          else { s+=nx; i+=2; }
+        } else if(nx==='u' && i+5 < len){
+          s += String.fromCharCode(parseInt(raw.slice(i+2,i+6),16));
+          i += 6;
+        } else if(nx==='n'){ s+='\n'; i+=2; }
+        else if(nx==='t'){ s+='\t'; i+=2; }
+        else if(nx==='r'){ s+='\r'; i+=2; }
+        else if(nx==='0'){ s+='\0'; i+=2; }
+        else { s+=nx; i+=2; }
+      } else if(ch === q){ i++; break; }
+      else { s+=ch; i++; }
     }
+    result.push(s);
   }
-
-  // Step 3: Find decoder functions
-  // Pattern: function _0xNNNN(_idx, _key){ return _arr[_idx - offset] }
-  // Or: var _0xNNNN = function(_idx){ return _arr[_idx] }
-  // Or: _0xNNNN = _0xARR; then _0xNNNN(idx)
-  // Most common: function _DECODER(_0xA, _0xB) { _0xARR = _0xARR || _0xARRFN(); return _0xARR[_0xA - OFFSET] }
-  
-  for (const arrName of Object.keys(result.stringArrays)) {
-    const eName = arrName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    
-    // Pattern A: function _0xDECODER(_a, _b) { ... _0xARR[...] ... }
-    const fnPattern = new RegExp(
-      'function\\s+(_0x[a-fA-F0-9]{3,8})\\s*\\([^)]{0,60}\\)\\s*\\{[\\s\\S]{0,800}?' + eName + '[\\s\\S]{0,200}?\\}',
-      'g'
-    );
-    let fm;
-    while ((fm = fnPattern.exec(code)) !== null) {
-      const decoderName = fm[1];
-      if (decoderName !== arrName) {
-        result.decoderNames[decoderName] = arrName;
-      }
-    }
-
-    // Pattern B: var _0xDECODER = function(...) { ... _0xARR ... }
-    const varFnPattern = new RegExp(
-      '(?:var|let|const)\\s+(_0x[a-fA-F0-9]{3,8})\\s*=\\s*function\\s*\\([^)]{0,60}\\)\\s*\\{[\\s\\S]{0,800}?' + eName + '[\\s\\S]{0,200}?\\}',
-      'g'
-    );
-    while ((fm = varFnPattern.exec(code)) !== null) {
-      const decoderName = fm[1];
-      if (decoderName !== arrName) {
-        result.decoderNames[decoderName] = arrName;
-      }
-    }
-  }
-
   return result;
 }
 
-// ---- CORE: Resolve decoder function calls by simulating them ----
-function resolveDecoderCalls(code, maps) {
-  const { stringArrays, decoderNames } = maps;
-  if (Object.keys(decoderNames).length === 0 && Object.keys(stringArrays).length === 0) return code;
+// Collect all _0x string arrays from source
+function collectArrays(src){
+  var arrays = {};
 
-  // For each decoder function, try to resolve its calls
-  for (const [decoderName, arrName] of Object.entries(decoderNames)) {
-    const arr = stringArrays[arrName];
-    if (!arr || arr.length === 0) continue;
+  // Pattern: var/let/const _0xNAME = [...]  OR  _0xNAME = [...]
+  var re = /(?:(?:var|let|const)\s+)?(_0x[a-fA-F0-9]{3,8})\s*=\s*\[/g;
+  var m;
+  while((m = re.exec(src)) !== null){
+    var name = m[1];
+    var bStart = m.index + m[0].length - 1;
+    var bEnd = matchBracket(src, bStart, '[', ']');
+    if(bEnd === -1 || (bEnd-bStart) > 500000) continue;
+    try{
+      var items = parseStringArray(src.slice(bStart+1, bEnd));
+      if(items.length > 0) arrays[name] = items.slice();
+    }catch(e){}
+  }
 
-    const eName = decoderName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Pattern: function _0xNAME(){ return [...] }
+  var re2 = /function\s+(_0x[a-fA-F0-9]{3,8})\s*\(\s*\)\s*\{[^{}]{0,200}return\s*\[/g;
+  while((m = re2.exec(src)) !== null){
+    var name2 = m[1];
+    var idx = src.indexOf('[', m.index + m[0].length - 1);
+    if(idx === -1) continue;
+    var bEnd2 = matchBracket(src, idx, '[', ']');
+    if(bEnd2 === -1 || (bEnd2-idx) > 500000) continue;
+    try{
+      var items2 = parseStringArray(src.slice(idx+1, bEnd2));
+      if(items2.length > 0) arrays[name2] = items2.slice();
+    }catch(e){}
+  }
 
-    // Find the decoder function body to determine the offset
-    let offset = 0;
-    const bodyPattern = new RegExp(
-      'function\\s+' + eName + '\\s*\\([^)]*\\)\\s*\\{([\\s\\S]{0,800}?)\\}|' +
-      '(?:var|let|const)\\s+' + eName + '\\s*=\\s*function\\s*\\([^)]*\\)\\s*\\{([\\s\\S]{0,800}?)\\}'
-    );
-    const bodyMatch = code.match(bodyPattern);
-    if (bodyMatch) {
-      const body = bodyMatch[1] || bodyMatch[2] || '';
-      // Look for subtraction offset: return _arr[_a - 0x1a2] or - parseInt(...)
-      const offsetMatch = body.match(/[-–]\s*(0x[0-9a-fA-F]+|\d+)/);
-      if (offsetMatch) {
-        offset = offsetMatch[1].startsWith('0x') ? parseInt(offsetMatch[1], 16) : parseInt(offsetMatch[1]);
-      }
-      // Also check parseInt offset patterns
-      const parseIntMatch = body.match(/parseInt\s*\([^)]+\)\s*[-–]\s*(0x[0-9a-fA-F]+|\d+)/);
-      if (parseIntMatch) {
-        offset = parseIntMatch[1].startsWith('0x') ? parseInt(parseIntMatch[1], 16) : parseInt(parseIntMatch[1]);
+  return arrays;
+}
+
+// Apply array rotations
+function applyRotations(src, arrays){
+  // IIFE rotation: (function(_a, _n){ ...push...shift... }(_0xNAME, 0xNUM))
+  var re = /\(\s*function\s*\(\s*\w+\s*,\s*\w+\s*\)\s*\{[\s\S]{0,800}?push[\s\S]{0,800}?shift[\s\S]{0,300}?\}\s*\(\s*(_0x[a-fA-F0-9]{3,8})\s*,\s*(0x[0-9a-fA-F]+|\d+)\s*\)\s*\)/g;
+  var m;
+  while((m = re.exec(src)) !== null){
+    var arrName = m[1];
+    if(!arrays[arrName]) continue;
+    var n = m[2].startsWith('0x') ? parseInt(m[2],16) : parseInt(m[2]);
+    var arr = arrays[arrName];
+    var times = ((n % arr.length) + arr.length) % arr.length;
+    for(var i=0; i<times; i++) arr.push(arr.shift());
+  }
+}
+
+// Detect decoder functions that wrap array access
+// Returns { decoderName: { arrName, offset } }
+function detectDecoders(src, arrays){
+  var decoders = {};
+
+  for(var arrName in arrays){
+    // Find all functions whose body references this array
+    // We look for function declarations and expressions
+    var patterns = [
+      // function _0xDEC(_a,_b){ ... }
+      /function\s+(_0x[a-fA-F0-9]{3,8})\s*\(([^)]{0,100})\)\s*\{/g,
+      // var _0xDEC = function(_a,_b){ ... }
+      /(?:var|let|const)\s+(_0x[a-fA-F0-9]{3,8})\s*=\s*function\s*\(([^)]{0,100})\)\s*\{/g,
+    ];
+
+    for(var pi=0; pi<patterns.length; pi++){
+      var re = patterns[pi];
+      re.lastIndex = 0;
+      var m;
+      while((m = re.exec(src)) !== null){
+        var decName = m[1];
+        if(decName === arrName || decoders[decName]) continue;
+        // Find the function body
+        var braceStart = m.index + m[0].length - 1;
+        var braceEnd = matchBracket(src, braceStart, '{', '}');
+        if(braceEnd === -1 || (braceEnd - braceStart) > 3000) continue;
+        var body = src.slice(braceStart+1, braceEnd);
+        if(body.indexOf(arrName) === -1) continue;
+
+        // Parse offset: look for arrName[param - OFFSET]
+        var offset = 0;
+        var subM = body.match(new RegExp(arrName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*\\[\\s*\\w+\\s*-\\s*(0x[0-9a-fA-F]+|\\d+)'));
+        if(subM){
+          offset = subM[1].startsWith('0x') ? parseInt(subM[1],16) : parseInt(subM[1]);
+        }
+
+        decoders[decName] = { arrName: arrName, offset: offset };
       }
     }
+  }
+  return decoders;
+}
 
-    // Now replace all calls: _0xDECODER(0x1a2) or _0xDECODER(0x1a2, 'key')
-    // with the resolved string
-    const callPattern = new RegExp(eName + '\\s*\\(\\s*(0x[0-9a-fA-F]+|\\d+)\\s*(?:,\\s*(?:[\'"][^\'"]*[\'"]|\\d+))?\\s*\\)', 'g');
-    code = code.replace(callPattern, (full, idxStr) => {
-      try {
-        const idx = idxStr.startsWith('0x') ? parseInt(idxStr, 16) : parseInt(idxStr);
-        const realIdx = idx - offset;
-        if (!isNaN(realIdx) && realIdx >= 0 && realIdx < arr.length) {
-          const val = arr[realIdx];
-          return "'" + val.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
-        }
-      } catch(e) {}
+// Build a safe JS string literal
+function strLit(val){
+  if(val === undefined || val === null) return "''";
+  var s = String(val);
+  // escape backslash first, then quote
+  s = s.replace(/\\/g,'\\\\');
+  if(s.indexOf("'") !== -1 && s.indexOf('"') === -1){
+    return '"' + s.replace(/"/g,'\\"') + '"';
+  }
+  return "'" + s.replace(/'/g,"\\'") + "'";
+}
+
+// Replace all decoder calls and direct array accesses
+function resolveAll(src, arrays, decoders){
+  var count = 0;
+
+  // 1. Decoder function calls: _0xDEC(0x1a2) or _0xDEC(0x1a2, 'key')
+  for(var decName in decoders){
+    var info = decoders[decName];
+    var arr = arrays[info.arrName];
+    if(!arr || !arr.length) continue;
+    var offset = info.offset;
+    var esc = decName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    var callRe = new RegExp(esc + '\\s*\\(\\s*(0x[0-9a-fA-F]+|\\d+)(?:\\s*,[^)]{0,80})?\\s*\\)', 'g');
+    src = src.replace(callRe, function(full, idxRaw){
+      try{
+        var idx = (idxRaw.startsWith('0x') ? parseInt(idxRaw,16) : parseInt(idxRaw)) - offset;
+        if(idx >= 0 && idx < arr.length){ count++; return strLit(arr[idx]); }
+      }catch(e){}
       return full;
     });
-
-    // Also try without offset if nothing resolved
-    if (offset !== 0) {
-      code = code.replace(callPattern, (full, idxStr) => {
-        try {
-          const idx = idxStr.startsWith('0x') ? parseInt(idxStr, 16) : parseInt(idxStr);
-          if (!isNaN(idx) && idx >= 0 && idx < arr.length) {
-            const val = arr[idx];
-            return "'" + val.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
-          }
-        } catch(e) {}
-        return full;
-      });
-    }
   }
 
-  // Also resolve direct bracket access: _0xARR[0x1a] (no decoder fn)
-  for (const [arrName, arr] of Object.entries(stringArrays)) {
-    const eName = arrName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const bracketPattern = new RegExp(eName + '\\s*\\[\\s*(0x[0-9a-fA-F]+|\\d+)\\s*\\]', 'g');
-    code = code.replace(bracketPattern, (full, idxStr) => {
-      try {
-        const idx = idxStr.startsWith('0x') ? parseInt(idxStr, 16) : parseInt(idxStr);
-        if (!isNaN(idx) && idx >= 0 && idx < arr.length) {
-          const val = arr[idx];
-          return "'" + val.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
-        }
-      } catch(e) {}
+  // 2. Direct bracket: _0xNAME[0x1a]
+  for(var arrName in arrays){
+    var arr2 = arrays[arrName];
+    var esc2 = arrName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    var brRe = new RegExp(esc2 + '\\s*\\[\\s*(0x[0-9a-fA-F]+|\\d+)\\s*\\]', 'g');
+    src = src.replace(brRe, function(full, idxRaw){
+      try{
+        var idx = idxRaw.startsWith('0x') ? parseInt(idxRaw,16) : parseInt(idxRaw);
+        if(idx >= 0 && idx < arr2.length){ count++; return strLit(arr2[idx]); }
+      }catch(e){}
       return full;
     });
   }
 
-  return code;
+  return { src: src, count: count };
 }
 
-// --- Pass 1: Decode hex/unicode escapes (raw level, before string parsing) ---
-function decodeEscapes(code) {
-  try {
-    code = code.replace(/\\x([0-9a-fA-F]{2})/g, (_, h) => {
-      try {
-        const c = String.fromCharCode(parseInt(h, 16));
-        // Don't decode chars that break JS syntax when unescaped inside strings
-        if (c === "'" || c === '"' || c === '\\' || c === '\n' || c === '\r') return _;
-        return c;
-      } catch { return _; }
+// Decode \xNN \uNNNN escapes in the raw source text
+function decodeEscapes(src){
+  try{
+    src = src.replace(/\\x([0-9a-fA-F]{2})/g, function(_,h){
+      var c = String.fromCharCode(parseInt(h,16));
+      // Keep quotes/backslash escaped to not break strings
+      if(c==="'"||c==='"'||c==='\\') return _;
+      return c;
     });
-    code = code.replace(/\\u\{([0-9a-fA-F]+)\}/g, (_, h) => {
-      try { return String.fromCodePoint(parseInt(h, 16)); } catch { return _; }
+    src = src.replace(/\\u\{([0-9a-fA-F]+)\}/g, function(_,h){
+      try{ return String.fromCodePoint(parseInt(h,16)); }catch{ return _; }
     });
-    code = code.replace(/\\u([0-9a-fA-F]{4})/g, (_, h) => {
-      try {
-        const c = String.fromCharCode(parseInt(h, 16));
-        if (c === "'" || c === '"' || c === '\\') return _;
-        return c;
-      } catch { return _; }
+    src = src.replace(/\\u([0-9a-fA-F]{4})/g, function(_,h){
+      var c = String.fromCharCode(parseInt(h,16));
+      if(c==="'"||c==='"'||c==='\\') return _;
+      return c;
     });
-  } catch(e) {}
-  return code;
+  }catch(e){}
+  return src;
 }
 
-// --- Pass 2: Resolve hex number literals ---
-function resolveHexNumbers(code) {
-  try {
-    // Only convert standalone hex numbers not inside strings
-    code = code.replace(/\b0x([0-9a-fA-F]+)\b/g, (match, hex) => {
-      try {
-        const val = parseInt(hex, 16);
-        if (!isNaN(val) && Math.abs(val) < 1e12) return String(val);
-      } catch {}
-      return match;
-    });
-  } catch(e) {}
-  return code;
+// Resolve hex number literals: 0x1a2b → 6699
+function resolveHexNums(src){
+  return src.replace(/\b(0x[0-9a-fA-F]{1,8})\b/g, function(m,h){
+    var v = parseInt(h,16);
+    if(!isNaN(v) && Math.abs(v) < 1e12) return String(v);
+    return m;
+  });
 }
 
-// --- Pass 3: Main _0x resolver (build maps then resolve) ---
-function resolveAllDecoders(code) {
-  try {
-    // Run multiple passes — sometimes one resolution enables the next
-    for (let pass = 0; pass < 3; pass++) {
-      const maps = buildDecoderMaps(code);
-      const prev = code;
-      code = resolveDecoderCalls(code, maps);
-      if (code === prev) break; // no more changes
+// Decode Dean Edwards packer
+function decodePacker(src){
+  if(!/eval\s*\(function\s*\(p,a,c,k,e/.test(src)) return src;
+  try{
+    var m = src.match(/\((['"`])([\s\S]*?)\1\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(['"`])([\s\S]*?)\5\s*\.split\(/);
+    if(!m) return src;
+    var p=m[2], a=parseInt(m[3]), k=m[6].split('|');
+    var D='0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    var out=p.replace(/\b\w+\b/g,function(w){
+      var n=0;
+      for(var i=0;i<w.length;i++) n=n*a+D.indexOf(w[i]);
+      return (n>=0&&n<k.length&&k[n])?k[n]:w;
+    });
+    if(out!==p) return '/* [packer decoded] */\n'+out;
+  }catch(e){}
+  return src;
+}
+
+// Decode eval(atob(...))
+function decodeEvalAtob(src){
+  return src.replace(/eval\s*\(\s*atob\s*\(\s*(['"`])([\s\S]*?)\1\s*\)\s*\)/g, function(m,q,b64){
+    try{ return '/* [eval+atob decoded] */\n'+atob(b64); }catch{ return m; }
+  });
+}
+
+// Simplify common patterns
+function simplify(src){
+  // bracket notation to dot
+  src = src.replace(/(\b[\w$][\w$]*)\s*\[\s*'([a-zA-Z_$][a-zA-Z0-9_$]*)'\s*\]/g, function(m,o,p){
+    var reserved = {'delete':1,'in':1,'instanceof':1,'typeof':1,'void':1,'new':1,'return':1,'throw':1,
+      'case':1,'default':1,'break':1,'continue':1,'if':1,'else':1,'for':1,'while':1,'do':1,
+      'switch':1,'try':1,'catch':1,'finally':1,'class':1,'extends':1,'super':1,'import':1,
+      'export':1,'yield':1,'await':1,'let':1,'const':1,'var':1,'function':1,'with':1,'debugger':1,'this':1};
+    return reserved[p] ? m : o+'.'+p;
+  });
+  src = src.replace(/!\s*\[\s*\]/g,'false');
+  src = src.replace(/!!\s*\[\s*\]/g,'true');
+  src = src.replace(/void\s+0\b/g,'undefined');
+  return src;
+}
+
+// Fold adjacent string literals: 'a'+'b' → 'ab'
+function foldStrings(src){
+  var prev, n=0;
+  do {
+    prev=src; n++;
+    src=src.replace(/'([^'\\]*)'\s*\+\s*'([^'\\]*)'/g,function(_,a,b){ return "'"+a+b+"'"; });
+    src=src.replace(/"([^"\\]*)"\s*\+\s*"([^"\\]*)"/g,function(_,a,b){ return '"'+a+b+'"'; });
+  } while(src!==prev && n<50);
+  return src;
+}
+
+// Reformat code — add newlines, proper indentation
+function reformat(src){
+  // Only unminify if it looks minified (very few newlines relative to length)
+  var newlines = (src.match(/\n/g)||[]).length;
+  var isMinified = src.length > 200 && newlines < src.length/200;
+
+  if(isMinified){
+    // Insert newlines at statement boundaries (carefully, avoiding strings)
+    var out2 = '';
+    var inStr = false;
+    var strChar = '';
+    for(var i=0; i<src.length; i++){
+      var c = src[i];
+      if(!inStr){
+        if(c==='"'||c==="'"){ inStr=true; strChar=c; out2+=c; continue; }
+        if(c===';'){ out2+=c+'\n'; continue; }
+        if(c==='{'){ out2+=c+'\n'; continue; }
+        if(c==='}'){ out2+='\n'+c+'\n'; continue; }
+      } else {
+        if(c===strChar && src[i-1]!=='\\'){ inStr=false; out2+=c; continue; }
+      }
+      out2+=c;
     }
-  } catch(e) { console.warn('resolveAllDecoders error:', e); }
-  return code;
-}
-
-// --- Pass 4: Decode eval wrappers ---
-function decodeEvalPatterns(code) {
-  try {
-    code = code.replace(/eval\s*\(\s*atob\s*\(\s*(['"`])([\s\S]*?)\1\s*\)\s*\)/g, (match, q, b64) => {
-      try { return '/* eval(atob) decoded: */\n' + atob(b64); } catch { return match; }
-    });
-    code = code.replace(/\beval\s*\(\s*'((?:[^'\\]|\\.)*)'\s*\)/g, (match, inner) => {
-      try {
-        return '/* eval decoded: */\n' + inner
-          .replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\r/g, '\r')
-          .replace(/\\'/g, "'").replace(/\\\\/g, '\\');
-      } catch { return match; }
-    });
-  } catch(e) {}
-  return code;
-}
-
-// --- Pass 5: Decode Dean Edwards p,a,c,k,e,r ---
-function decodePacker(code) {
-  try {
-    if (!/eval\s*\(function\s*\(p,a,c,k,e/.test(code)) return code;
-    const fullMatch = code.match(/eval\s*\(function\s*\(p,a,c,k,e[,d]*\)([\s\S]+?)\((['"`])([\s\S]*?)\3\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(['"`])([\s\S]*?)\6/);
-    if (!fullMatch) return code;
-    try {
-      const p = fullMatch[3], a = parseInt(fullMatch[4]), k = fullMatch[7].split('|');
-      const digits = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-      const unpacked = p.replace(/\b(\w+)\b/g, (word) => {
-        let n = 0;
-        for (let i = 0; i < word.length; i++) n = n * a + digits.indexOf(word[i]);
-        return (n >= 0 && n < k.length && k[n]) ? k[n] : word;
-      });
-      if (unpacked !== p && unpacked.length > 10) return '/* p,a,c,k,e,d decoded: */\n' + unpacked;
-    } catch(inner) {}
-  } catch(e) {}
-  return code;
-}
-
-// --- Pass 6: Simplify bracket notation & dead code ---
-function simplifyPatterns(code) {
-  try {
-    // obj['prop'] -> obj.prop (only safe identifiers)
-    code = code.replace(/(\b\w[\w$]*)\s*\[\s*'([a-zA-Z_$][a-zA-Z0-9_$]*)'\s*\]/g, (match, obj, prop) => {
-      const reserved = new Set(['delete','in','instanceof','typeof','void','new','return','throw','case','default','break','continue','if','else','for','while','do','switch','try','catch','finally','class','extends','super','import','export','yield','await','let','const','var','function','with','debugger']);
-      return reserved.has(prop) ? match : obj + '.' + prop;
-    });
-    // Truthy/falsy simplifications
-    code = code.replace(/!\s*\[\s*\]/g, 'false');
-    code = code.replace(/!!\s*\[\s*\]/g, 'true');
-    code = code.replace(/!\s*'\s*'/g, 'true');
-    code = code.replace(/!\s*0(?!\d)/g, 'true');
-    // void 0 -> undefined
-    code = code.replace(/\bvoid\s+0\b/g, 'undefined');
-    // typeof undefined check simplification
-  } catch(e) {}
-  return code;
-}
-
-// --- Pass 7: String constant folding ---
-function foldConstants(code) {
-  try {
-    let prev, limit = 30;
-    do {
-      prev = code;
-      code = code.replace(/'([^'\\]*)'\s*\+\s*'([^'\\]*)'/g, (_, a, b) => "'" + a + b + "'");
-      code = code.replace(/"([^"\\]*)"\s*\+\s*"([^"\\]*)"/g, (_, a, b) => '"' + a + b + '"');
-    } while (code !== prev && --limit > 0);
-  } catch(e) {}
-  return code;
-}
-
-// --- Pass 8: Format with prettier (if available) ---
-function formatCode(code) {
-  try {
-    if (typeof prettier !== 'undefined' && typeof prettierPlugins !== 'undefined') {
-      return prettier.format(code, {
-        parser: 'babel',
-        plugins: prettierPlugins,
-        printWidth: 100,
-        tabWidth: 2,
-        semi: true,
-        singleQuote: true,
-        trailingComma: 'none',
-      });
-    }
-  } catch(e) {}
-  return basicFormat(code);
-}
-
-function basicFormat(code) {
-  try {
-    let result = '';
-    let indent = 0;
-    // First, add newlines after semicolons and braces (basic unminify)
-    code = code
-      .replace(/;(?!\s*[\n\r])/g, ';\n')
-      .replace(/\{(?!\s*[\n\r])/g, '{\n')
-      .replace(/\}(?!\s*[\n\r])/g, '}\n');
-    const lines = code.split('\n');
-    for (let line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) { result += '\n'; continue; }
-      const closings = (trimmed.match(/^[}\])]/) || []).length;
-      if (closings) indent = Math.max(0, indent - 1);
-      result += '  '.repeat(indent) + trimmed + '\n';
-      const opens = (trimmed.match(/[{[(]/g) || []).length;
-      const closes = (trimmed.match(/[})\]]/g) || []).length;
-      indent = Math.max(0, indent + opens - closes);
-    }
-    return result;
-  } catch(e) { return code; }
-}
-
-// --- Pass 10: Format with prettier (if available) ---
-function formatCode(code) {
-  try {
-    if (typeof prettier !== 'undefined' && typeof prettierPlugins !== 'undefined') {
-      return prettier.format(code, {
-        parser: 'babel',
-        plugins: prettierPlugins,
-        printWidth: 100,
-        tabWidth: 2,
-        semi: true,
-        singleQuote: true,
-        trailingComma: 'none',
-      });
-    }
-  } catch(e) {}
-  // Fallback: basic indentation
-  return basicFormat(code);
-}
-
-function basicFormat(code) {
-  try {
-    let result = '';
-    let indent = 0;
-    const lines = code.split('\n');
-    for (let line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) { result += '\n'; continue; }
-      // Decrease indent for closing braces
-      if (trimmed.startsWith('}') || trimmed.startsWith(']') || trimmed.startsWith(')')) indent = Math.max(0, indent - 1);
-      result += '  '.repeat(indent) + trimmed + '\n';
-      // Increase indent after opening braces
-      const opens = (trimmed.match(/[{[(]/g) || []).length;
-      const closes = (trimmed.match(/[})\]]/g) || []).length;
-      indent = Math.max(0, indent + opens - closes);
-    }
-    return result;
-  } catch(e) {
-    return code;
-  }
-}
-
-// --- Detection / Analysis ---
-function analyzeCode(code) {
-  const findings = [];
-  const techniques = [];
-
-  // _0x array style
-  const hexArrays = (code.match(/_0x[a-fA-F0-9]{3,6}\s*=\s*\[/g) || []).length;
-  if (hexArrays > 0) {
-    findings.push({ label: '_0x Array Mapping', value: hexArrays + ' found', detected: true });
-    techniques.push('_0x arrays');
+    src = out2;
   }
 
-  // eval usage
-  const evalCount = (code.match(/\beval\s*\(/g) || []).length;
-  if (evalCount > 0) {
-    findings.push({ label: 'eval() Usage', value: evalCount + ' calls', detected: true });
-    techniques.push('eval obfuscation');
+  // Proper indentation
+  var lines = src.split('\n');
+  var result = '';
+  var indent = 0;
+  for(var j=0; j<lines.length; j++){
+    var line = lines[j].trim();
+    if(!line){ result+='\n'; continue; }
+    var dec = (line[0]==='}' || line[0]===']' || line[0]===')') ? 1 : 0;
+    if(indent-dec < 0) dec=0;
+    indent = Math.max(0, indent-dec);
+    result += '  '.repeat(indent) + line + '\n';
+    var opens = (line.match(/[{[(]/g)||[]).length;
+    var closes = (line.match(/[})\]]/g)||[]).length;
+    indent = Math.max(0, indent + opens - closes);
   }
-
-  // Packer
-  if (/eval\s*\(function\s*\(p,a,c,k,e/.test(code)) {
-    findings.push({ label: 'P.A.C.K.E.R', value: 'Detected', detected: true });
-    techniques.push('packer');
-  }
-
-  // Hex encoding
-  const hexStrings = (code.match(/\\x[0-9a-fA-F]{2}/g) || []).length;
-  if (hexStrings > 5) {
-    findings.push({ label: 'Hex Encoding', value: hexStrings + ' sequences', detected: true });
-    techniques.push('hex encoding');
-  }
-
-  // Unicode encoding
-  const unicodeSeqs = (code.match(/\\u[0-9a-fA-F]{4}/g) || []).length;
-  if (unicodeSeqs > 3) {
-    findings.push({ label: 'Unicode Escapes', value: unicodeSeqs + ' sequences', detected: true });
-    techniques.push('unicode escapes');
-  }
-
-  // atob
-  if (/atob\s*\(/.test(code)) {
-    findings.push({ label: 'Base64 (atob)', value: 'Detected', detected: true });
-    techniques.push('base64/atob');
-  }
-
-  // Bracket notation abuse
-  const bracketNotation = (code.match(/\w+\['[a-zA-Z_$][a-zA-Z0-9_$]+'\]/g) || []).length;
-  if (bracketNotation > 5) {
-    findings.push({ label: 'Bracket Notation', value: bracketNotation + ' usages', detected: true });
-    techniques.push('bracket notation');
-  }
-
-  // Comma operator abuse
-  const commaOps = (code.match(/,\s*\(/g) || []).length;
-  if (commaOps > 20) {
-    findings.push({ label: 'Comma Operator', value: commaOps + ' uses', detected: true });
-    techniques.push('comma operator');
-  }
-
-  // Long hex numbers
-  const hexNums = (code.match(/\b0x[0-9a-fA-F]{4,}\b/g) || []).length;
-  if (hexNums > 10) {
-    findings.push({ label: 'Hex Numbers', value: hexNums + ' literals', detected: true });
-    techniques.push('hex numbers');
-  }
-
-  // Minified (no newlines or very few)
-  const newlines = (code.match(/\n/g) || []).length;
-  const ratio = code.length / (newlines + 1);
-  if (ratio > 200) {
-    findings.push({ label: 'Heavily Minified', value: 'Line ratio: ' + Math.round(ratio), detected: true });
-    techniques.push('minification');
-  }
-
-  if (findings.length === 0) {
-    findings.push({ label: 'Obfuscation', value: 'Not detected', detected: false });
-  }
-
-  return { findings, techniques };
+  return result;
 }
 
-function showAnalysis(analysis, inputLen, outputLen) {
-  const panel = document.getElementById('analysisPanel');
-  const grid = document.getElementById('analysisGrid');
-  const tags = document.getElementById('techTags');
-  const summary = document.getElementById('analysisSummary');
-  const detected = analysis.findings.filter(f => f.detected).length;
+// ── MAIN PIPELINE ─────────────────────────────────────────────
+async function runEngine(src, onProg){
+  var transforms = 0;
 
-  summary.textContent = detected > 0 ? detected + ' technique' + (detected > 1 ? 's' : '') + ' found' : 'Clean';
-  summary.className = 'badge ' + (detected > 0 ? 'badge-violet' : 'badge-green');
+  onProg(5, 'Step 1/8 — Decoding escape sequences...');
+  await tick();
+  src = decodeEscapes(src);
 
-  // Size reduction stat
-  const reduction = inputLen > 0 ? Math.round((1 - outputLen / inputLen) * 100) : 0;
-  const reductionItem = { label: 'Size Reduction', value: reduction + '%', detected: false };
+  onProg(12, 'Step 2/8 — Collecting string arrays...');
+  await tick();
+  var arrays = collectArrays(src);
+  var arrCount = Object.keys(arrays).length;
 
-  grid.innerHTML = [...analysis.findings, reductionItem].map(f => `
-    <div class="analysis-item">
-      <div class="analysis-label">${f.label}</div>
-      <div class="analysis-value">
-        ${f.value}
-        ${f.detected ? '<span class="tag tag-detected">detected</span>' : ''}
-      </div>
-    </div>
-  `).join('');
+  onProg(22, 'Step 3/8 — Applying array rotations...');
+  await tick();
+  applyRotations(src, arrays);
 
-  tags.innerHTML = analysis.techniques.length > 0
-    ? '<span style="font-size:10px;color:var(--text-muted);padding:3px 0;align-self:center;">Techniques:</span>' +
-      analysis.techniques.map(t => `<span class="tech-tag found">${t}</span>`).join('')
-    : '<span class="tech-tag">No obfuscation detected</span>';
+  onProg(32, 'Step 4/8 — Detecting decoder functions...');
+  await tick();
+  var decoders = detectDecoders(src, arrays);
+  var decCount = Object.keys(decoders).length;
 
-  panel.style.display = 'block';
-}
-
-function hideAnalysis() {
-  document.getElementById('analysisPanel').style.display = 'none';
-}
-
-// --- Main Processing ---
-
-async function runDeobfuscation(code, onProgress) {
-  const steps = [
-    { name: 'Decoding escapes...', fn: decodeEscapes, pct: 10 },
-    { name: 'Resolving hex numbers...', fn: resolveHexNumbers, pct: 20 },
-    { name: 'Resolving _0x decoder functions...', fn: resolveAllDecoders, pct: 50 },
-    { name: 'Decoding eval patterns...', fn: decodeEvalPatterns, pct: 60 },
-    { name: 'Decoding packer...', fn: decodePacker, pct: 68 },
-    { name: 'Simplifying patterns...', fn: simplifyPatterns, pct: 76 },
-    { name: 'Folding constants...', fn: foldConstants, pct: 85 },
-    { name: 'Formatting code...', fn: formatCode, pct: 95 },
-  ];
-
-  let result = code;
-  let passCount = 0;
-
-  for (const step of steps) {
-    onProgress(step.pct, step.name);
-    // Yield to event loop for UI update
-    await new Promise(resolve => setTimeout(resolve, 0));
-    try {
-      const prev = result;
-      result = step.fn(result);
-      if (result === undefined || result === null) result = prev;
-      if (result !== prev) passCount++;
-    } catch(e) {
-      // Never crash — just skip the step
-      console.warn('Step error:', step.name, e);
-    }
+  // Multi-pass resolution
+  for(var pass=1; pass<=6; pass++){
+    onProg(32 + pass*7, 'Step 5/8 — Resolving calls (pass '+pass+'/6)...');
+    await tick();
+    var r = resolveAll(src, arrays, decoders);
+    transforms += r.count;
+    src = r.src;
+    if(r.count === 0) break;
+    // Refresh — new arrays/decoders may be exposed
+    var newArr = collectArrays(src);
+    for(var k in newArr){ if(!arrays[k]) arrays[k]=newArr[k]; }
+    applyRotations(src, arrays);
+    var newDec = detectDecoders(src, arrays);
+    for(var d in newDec){ if(!decoders[d]) decoders[d]=newDec[d]; }
   }
 
-  return { code: result, passes: passCount };
+  onProg(76, 'Step 6/8 — Decoding packer / eval...');
+  await tick();
+  var p2 = decodePacker(src); if(p2!==src){ transforms++; src=p2; }
+  var e2 = decodeEvalAtob(src); if(e2!==src){ transforms++; src=e2; }
+
+  onProg(82, 'Step 7/8 — Simplifying patterns...');
+  await tick();
+  src = simplify(src);
+  src = resolveHexNums(src);
+  src = foldStrings(src);
+
+  onProg(93, 'Step 8/8 — Reformatting...');
+  await tick();
+  src = reformat(src);
+
+  onProg(100, 'Complete!');
+  return { src: src, transforms: transforms, arrCount: arrCount, decCount: decCount };
 }
 
-async function deobfuscate() {
-  const input = document.getElementById('inputCode').value.trim();
-  if (!input) { showToast('Paste code or upload a file first', 'error'); return; }
+// ── Entry points ──────────────────────────────────────────────
+async function deobfuscate(){
+  var input = $e('inp').value.trim();
+  if(!input){ toast('Paste code or upload a file first', 'err'); return; }
 
-  const startTime = performance.now();
-  setLoading(true, 'Analyzing...');
+  var t0 = performance.now();
+  setLoading(true, 'Starting engine...');
 
-  try {
-    // Run analysis first
-    const analysis = analyzeCode(input);
+  try{
+    var analysis = analyzeCode(input);
+    var result = await runEngine(input, setProgress);
+    var output = result.src;
+    var elapsed = ((performance.now()-t0)/1000).toFixed(2);
 
-    // Run deobfuscation
-    const { code: output, passes } = await runDeobfuscation(input, (pct, label) => {
-      setProgress(pct, label);
-    });
+    $e('out').value = output;
+    $e('ov').classList.add('hidden');
+    $e('oc').textContent = output.length.toLocaleString() + ' chars';
+    $e('red').textContent = input.length>0 ? Math.round((1-output.length/input.length)*100)+'%' : '0%';
+    $e('trn').textContent = result.transforms;
+    $e('tim').textContent = elapsed + 's';
 
-    setProgress(100, 'Done!');
-    await new Promise(r => setTimeout(r, 200));
-
-    const elapsed = ((performance.now() - startTime) / 1000).toFixed(2);
-
-    // Show output
-    document.getElementById('outputCode').value = output;
-    document.getElementById('outputOverlay').classList.add('hidden');
-    document.getElementById('outputCount').textContent = output.length.toLocaleString() + ' chars';
-
-    // Update stats
-    document.getElementById('reductionStat').textContent =
-      input.length > 0 ? Math.round((1 - output.length / input.length) * 100) + '%' : '0%';
-    document.getElementById('passesStat').textContent = passes;
-    document.getElementById('timeStat').textContent = elapsed + 's';
-
-    // Show analysis panel
-    showAnalysis(analysis, input.length, output.length);
-
-    showToast('Deobfuscation complete! ' + passes + ' transforms applied.');
-  } catch (e) {
-    showToast('An error occurred: ' + e.message, 'error');
+    showAP(analysis.findings, analysis.techs, input.length, output.length);
+    toast('Done! '+result.transforms+' transforms, '+result.arrCount+' arrays, '+result.decCount+' decoders', 'ok');
+  }catch(e){
     console.error(e);
-  } finally {
+    toast('Engine error: '+e.message, 'err');
+  }finally{
     setLoading(false);
   }
 }
 
-async function formatOnly() {
-  const input = document.getElementById('inputCode').value.trim();
-  if (!input) { showToast('No code to format', 'error'); return; }
-
-  setLoading(true, 'Formatting...');
-  try {
-    await new Promise(r => setTimeout(r, 0));
-    setProgress(50, 'Formatting...');
-    const output = formatCode(input);
-    setProgress(100);
-    document.getElementById('outputCode').value = output;
-    document.getElementById('outputOverlay').classList.add('hidden');
-    document.getElementById('outputCount').textContent = output.length.toLocaleString() + ' chars';
-    showToast('Code formatted!');
-  } catch(e) {
-    showToast('Format error: ' + e.message, 'error');
-  } finally {
-    setLoading(false);
-  }
+async function formatOnly(){
+  var input = $e('inp').value.trim();
+  if(!input){ toast('No code to format', 'err'); return; }
+  setLoading(true, 'Reformatting...');
+  try{
+    await tick(); setProgress(50,'Formatting...');
+    var out = reformat(input);
+    setProgress(100,'Done!');
+    $e('out').value = out;
+    $e('ov').classList.add('hidden');
+    $e('oc').textContent = out.length.toLocaleString() + ' chars';
+    toast('Formatted!', 'ok');
+  }catch(e){ toast('Error: '+e.message, 'err'); }
+  finally{ setLoading(false); }
 }
 
-function analyzeOnly() {
-  const input = document.getElementById('inputCode').value.trim();
-  if (!input) { showToast('No code to analyze', 'error'); return; }
-  const analysis = analyzeCode(input);
-  showAnalysis(analysis, input.length, input.length);
-  showToast('Analysis complete — ' + analysis.findings.filter(f => f.detected).length + ' technique(s) found');
+function analyzeOnly(){
+  var input = $e('inp').value.trim();
+  if(!input){ toast('No code to analyze', 'err'); return; }
+  var a = analyzeCode(input);
+  showAP(a.findings, a.techs, input.length, input.length);
+  toast('Analysis: '+a.findings.filter(function(f){return f.d;}).length+' technique(s) found', 'info');
 }
 
-// Initialize
-updateInputCount();
+onInput();
 </script>
 </body>
 </html>
